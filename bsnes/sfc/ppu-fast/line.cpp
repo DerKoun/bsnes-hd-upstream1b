@@ -157,10 +157,11 @@ auto PPU::Line::render() -> void {
   }
 
   renderBackground(io.bg1, Source::BG1);
-  renderBackground(io.bg2, Source::BG2);
+  if(!io.extbg) renderBackground(io.bg2, Source::BG2);
   renderBackground(io.bg3, Source::BG3);
   renderBackground(io.bg4, Source::BG4);
   renderObject(io.obj);
+  if(io.extbg) renderBackground(io.bg2, Source::BG2);
   renderWindow(io.col.window, io.col.window.aboveMask, windowAbove);
   renderWindow(io.col.window, io.col.window.belowMask, windowBelow);
 
