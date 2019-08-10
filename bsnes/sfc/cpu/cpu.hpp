@@ -2,9 +2,12 @@ struct CPU : Processor::WDC65816, Thread, PPUcounter {
   inline auto interruptPending() const -> bool override { return status.interruptPending; }
   inline auto pio() const -> uint8 { return io.pio; }
   inline auto refresh() const -> bool { return status.dramRefresh == 1; }
-  inline auto synchronizing() const -> bool override { return scheduler.synchronizing(); }
+  inline auto synchronizing() const -> bool override { return scheduler.mode == Scheduler::Mode::SynchronizeCPU; }
 
   //cpu.cpp
+  auto synchronizeSMP() -> void;
+  auto synchronizePPU() -> void;
+  auto synchronizeCoprocessors() -> void;
   static auto Enter() -> void;
   auto main() -> void;
   auto load() -> bool;
@@ -48,9 +51,9 @@ struct CPU : Processor::WDC65816, Thread, PPUcounter {
 
   alwaysinline auto aluEdge() -> void;
   alwaysinline auto dmaEdge() -> void;
-  alwaysinline auto lastCycle() -> void;
 
   //irq.cpp
+  auto irq(bool line) -> void override;
   alwaysinline auto pollInterrupts() -> void;
   auto nmitimenUpdate(uint8 data) -> void;
   auto rdnmi() -> bool;
@@ -58,6 +61,7 @@ struct CPU : Processor::WDC65816, Thread, PPUcounter {
 
   alwaysinline auto nmiTest() -> bool;
   alwaysinline auto irqTest() -> bool;
+  alwaysinline auto lastCycle() -> void;
 
   //joypad.cpp
   auto joypadEdge() -> void;
@@ -67,6 +71,11 @@ struct CPU : Processor::WDC65816, Thread, PPUcounter {
 
   uint8 wram[128 * 1024];
   vector<Thread*> coprocessors;
+
+  struct Overclocking {
+    uint counter = 0;
+    uint target = 0;
+  } overclocking;
 
 private:
   uint version = 2;  //allowed: 1, 2
@@ -78,18 +87,17 @@ private:
 
   struct Status {
     uint clockCount = 0;
-    uint lineClocks = 0;
 
-    bool irqLock = false;
+    bool irqLock = 0;
 
     uint dramRefreshPosition = 0;
     uint dramRefresh = 0;  //0 = not refreshed; 1 = refresh active; 2 = refresh inactive
 
     uint hdmaSetupPosition = 0;
-    bool hdmaSetupTriggered = false;
+    bool hdmaSetupTriggered = 0;
 
     uint hdmaPosition = 0;
-    bool hdmaTriggered = false;
+    bool hdmaTriggered = 0;
 
     boolean nmiValid = 0;
     boolean nmiLine = 0;
@@ -103,18 +111,16 @@ private:
     boolean irqPending = 0;
     boolean irqHold = 0;
 
-    bool powerPending = false;
-    bool resetPending = false;
+    bool resetPending = 0;
+    bool interruptPending = 0;
 
-    bool interruptPending = false;
-
-    bool dmaActive = false;
-    bool dmaPending = false;
-    bool hdmaPending = false;
+    bool dmaActive = 0;
+    bool dmaPending = 0;
+    bool hdmaPending = 0;
     bool hdmaMode = 0;  //0 = init, 1 = run
 
-    bool autoJoypadActive = false;
-    bool autoJoypadLatch = false;
+    bool autoJoypadActive = 0;
+    bool autoJoypadLatch = 0;
     uint autoJoypadCounter = 0;
   } status;
 

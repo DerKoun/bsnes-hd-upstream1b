@@ -1,10 +1,18 @@
 auto Program::load() -> void {
   unload();
 
-  if(auto configuration = string::read(locate("configuration.bml"))) {
-    emulator->configure(configuration);
-    emulatorSettings.updateConfiguration();
-  }
+  emulator->configure("Hacks/CPU/Overclock", settings.emulator.hack.cpu.overclock);
+  emulator->configure("Hacks/PPU/Fast", settings.emulator.hack.ppu.fast);
+  emulator->configure("Hacks/PPU/NoSpriteLimit", settings.emulator.hack.ppu.noSpriteLimit);
+  emulator->configure("Hacks/PPU/Mode7/Scale", settings.emulator.hack.ppu.mode7.scale);
+  emulator->configure("Hacks/PPU/Mode7/Perspective", settings.emulator.hack.ppu.mode7.perspective);
+  emulator->configure("Hacks/PPU/Mode7/Supersample", settings.emulator.hack.ppu.mode7.supersample);
+  emulator->configure("Hacks/PPU/Mode7/Mosaic", settings.emulator.hack.ppu.mode7.mosaic);
+  emulator->configure("Hacks/DSP/Fast", settings.emulator.hack.dsp.fast);
+  emulator->configure("Hacks/DSP/Cubic", settings.emulator.hack.dsp.cubic);
+  emulator->configure("Hacks/Coprocessor/DelayedSync", settings.emulator.hack.coprocessor.delayedSync);
+  emulator->configure("Hacks/Coprocessor/PreferHLE", settings.emulator.hack.coprocessor.preferHLE);
+  emulator->configure("Hacks/SuperFX/Overclock", settings.emulator.hack.superfx.overclock);
   if(!emulator->load()) return;
 
   gameQueue = {};
@@ -37,7 +45,7 @@ auto Program::load() -> void {
     appliedPatch() ? " and patch applied" : ""
   });
   presentation.setFocused();
-  presentation.setTitle(emulator->titles().merge(" + "));
+  presentation.setTitle(emulator->title());
   presentation.resetSystem.setEnabled(true);
   presentation.unloadGame.setEnabled(true);
   presentation.toolsMenu.setVisible(true);
@@ -62,6 +70,7 @@ auto Program::load() -> void {
   presentation.addRecentGame(games.trimRight("|", 1L));
 
   updateVideoPalette();
+  updateVideoEffects();
   updateAudioEffects();
   updateAudioFrequency();
 }
@@ -123,7 +132,6 @@ auto Program::loadSuperFamicom(string location) -> bool {
   superFamicom.title = heuristics.title();
   superFamicom.manifest = manifest ? manifest : heuristics.manifest();
   hackPatchMemory(rom);
-  hackOverclockSuperFX();
   superFamicom.document = BML::unserialize(superFamicom.manifest);
   superFamicom.location = location;
 
@@ -307,9 +315,6 @@ auto Program::unload() -> void {
   toolsWindow.setVisible(false);
   if(emulatorSettings.autoSaveStateOnUnload.checked()) {
     saveUndoState();
-  }
-  if(auto configuration = emulator->configuration()) {
-    file::write(locate("configuration.bml"), configuration);
   }
   emulator->unload();
   showMessage("Game unloaded");

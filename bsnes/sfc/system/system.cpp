@@ -9,7 +9,9 @@ Cheat cheat;
 #include "serialization.cpp"
 
 auto System::run() -> void {
-  if(scheduler.enter() == Scheduler::Event::Frame) {
+  scheduler.mode = Scheduler::Mode::Run;
+  scheduler.enter();
+  if(scheduler.event == Scheduler::Event::Frame) {
     ppu.refresh();
 
     //refresh all cheat codes once per frame
@@ -24,15 +26,26 @@ auto System::run() -> void {
 }
 
 auto System::runToSave() -> void {
-  scheduler.synchronize(cpu);
-  scheduler.synchronize(smp);
-  scheduler.synchronize(ppu);
-  for(auto coprocessor : cpu.coprocessors) scheduler.synchronize(*coprocessor);
+  scheduler.mode = Scheduler::Mode::SynchronizeCPU;
+  while(true) { scheduler.enter(); if(scheduler.event == Scheduler::Event::Synchronize) break; }
+
+  scheduler.mode = Scheduler::Mode::SynchronizeAll;
+  scheduler.active = smp.thread;
+  while(true) { scheduler.enter(); if(scheduler.event == Scheduler::Event::Synchronize) break; }
+
+  scheduler.mode = Scheduler::Mode::SynchronizeAll;
+  scheduler.active = ppu.thread;
+  while(true) { scheduler.enter(); if(scheduler.event == Scheduler::Event::Synchronize) break; }
+
+  for(auto coprocessor : cpu.coprocessors) {
+    scheduler.mode = Scheduler::Mode::SynchronizeAll;
+    scheduler.active = coprocessor->thread;
+    while(true) { scheduler.enter(); if(scheduler.event == Scheduler::Event::Synchronize) break; }
+  }
 }
 
 auto System::load(Emulator::Interface* interface) -> bool {
   information = {};
-  hacks.fastPPU = configuration.hacks.ppu.fast;
 
   bus.reset();
   if(!cpu.load()) return false;
@@ -92,11 +105,12 @@ auto System::unload() -> void {
 }
 
 auto System::power(bool reset) -> void {
+  hacks.fastPPU = configuration.hacks.ppu.fast;
+
   Emulator::audio.reset(interface);
 
   random.entropy(Random::Entropy::Low);
 
-  scheduler.reset();
   cpu.power(reset);
   smp.power(reset);
   dsp.power(reset);
@@ -139,7 +153,7 @@ auto System::power(bool reset) -> void {
   if(cartridge.has.MSU1) cpu.coprocessors.append(&msu1);
   if(cartridge.has.BSMemorySlot) cpu.coprocessors.append(&bsmemory);
 
-  scheduler.primary(cpu);
+  scheduler.active = cpu.thread;
 
   controllerPort1.power(ID::Port::Controller1);
   controllerPort2.power(ID::Port::Controller2);

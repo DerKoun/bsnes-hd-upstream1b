@@ -1,8 +1,6 @@
 auto AudioSettings::create() -> void {
-  setIcon(Icon::Device::Speaker);
-  setText("Audio");
-
-  layout.setPadding(5_sx);
+  setCollapsible();
+  setVisible(false);
 
   effectsLabel.setFont(Font().setBold()).setText("Effects");
   effectsLayout.setSize({3, 3});
@@ -47,4 +45,8 @@ auto AudioSettings::create() -> void {
     balanceValue.setText(value);
     program.updateAudioEffects();
   }).doChange();
+
+  muteUnfocused.setText("Mute when unfocused").setChecked(settings.audio.muteUnfocused).onToggle([&] {
+    settings.audio.muteUnfocused = muteUnfocused.checked();
+  });
 }

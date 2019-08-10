@@ -19,6 +19,9 @@ struct WDC65816 {
 
   virtual auto readDisassembler(uint addr) -> uint8 { return 0; }
 
+  inline auto irq() const -> bool { return r.irq; }
+  virtual inline auto irq(bool line) -> void { r.irq = line; }
+
   using r8 = uint8;
 
   union r16 {
@@ -44,22 +47,24 @@ struct WDC65816 {
   auto power() -> void;
 
   //memory.cpp
-  inline auto idleIRQ() -> void;
-  inline auto idle2() -> void;
-  inline auto idle4(uint16 x, uint16 y) -> void;
-  inline auto idle6(uint16 address) -> void;
-  inline auto fetch() -> uint8;
-  inline auto pull() -> uint8;
-         auto push(uint8 data) -> void;
-  inline auto pullN() -> uint8;
-  inline auto pushN(uint8 data) -> void;
-  inline auto readDirect(uint address) -> uint8;
-  inline auto writeDirect(uint address, uint8 data) -> void;
-  inline auto readDirectN(uint address) -> uint8;
-  inline auto readBank(uint address) -> uint8;
-  inline auto writeBank(uint address, uint8 data) -> void;
-  inline auto readStack(uint address) -> uint8;
-  inline auto writeStack(uint address, uint8 data) -> void;
+  alwaysinline auto idleIRQ() -> void;
+  alwaysinline auto idle2() -> void;
+  alwaysinline auto idle4(uint16 x, uint16 y) -> void;
+  alwaysinline auto idle6(uint16 address) -> void;
+  alwaysinline auto fetch() -> uint8;
+  alwaysinline auto pull() -> uint8;
+               auto push(uint8 data) -> void;
+  alwaysinline auto pullN() -> uint8;
+  alwaysinline auto pushN(uint8 data) -> void;
+  alwaysinline auto readDirect(uint address) -> uint8;
+  alwaysinline auto writeDirect(uint address, uint8 data) -> void;
+  alwaysinline auto readDirectN(uint address) -> uint8;
+  alwaysinline auto readBank(uint address) -> uint8;
+  alwaysinline auto writeBank(uint address, uint8 data) -> void;
+  alwaysinline auto readLong(uint address) -> uint8;
+  alwaysinline auto writeLong(uint address, uint8 data) -> void;
+  alwaysinline auto readStack(uint address) -> uint8;
+  alwaysinline auto writeStack(uint address, uint8 data) -> void;
 
   //algorithms.cpp
   using  alu8 = auto (WDC65816::*)( uint8) ->  uint8;

@@ -9,8 +9,11 @@ auto locate(string name) -> string {
   string location = {Path::program(), name};
   if(inode::exists(location)) return location;
 
-  directory::create({Path::userData(), "bsnes/"});
-  return {Path::userData(), "bsnes/", name};
+  location = {Path::userData(), "bsnes/", name};
+  if(inode::exists(location)) return location;
+
+  directory::create({Path::userSettings(), "bsnes/"});
+  return {Path::userSettings(), "bsnes/", name};
 }
 
 #include <nall/main.hpp>
@@ -19,7 +22,7 @@ auto nall::main(Arguments arguments) -> void {
 
   for(auto argument : arguments) {
     if(argument == "--fullscreen") {
-      presentation.startFullScreen = true;
+      program.startFullScreen = true;
     } else if(argument.beginsWith("--locale=")) {
       Application::locale().scan(locate("Locale/"));
       Application::locale().select(argument.trimLeft("--locale=", 1L));
@@ -39,6 +42,7 @@ auto nall::main(Arguments arguments) -> void {
   Application::setName("bsnes");
   Application::setScreenSaver(settings.general.screenSaver);
   Application::setToolTips(settings.general.toolTips);
+
   Instances::presentation.construct();
   Instances::settingsWindow.construct();
   Instances::cheatDatabase.construct();
@@ -47,6 +51,23 @@ auto nall::main(Arguments arguments) -> void {
   Instances::toolsWindow.construct();
   emulator = new SuperFamicom::Interface;
   program.create();
+
+  if(Emulator::Version.find(".") && settings.general.betaWarning) {
+    MessageDialog dialog;
+    dialog.setTitle(Emulator::Name);
+    dialog.setText(
+      "This is a nightly release. Bugs and regressions are possible!\n"
+      "If you experience issues, please report them to me.\n"
+      "If stability is required, please use a stable release.\n"
+    );
+    dialog.setOption("Don't show this message again");
+    dialog.information();
+    if(dialog.checked()) {
+      settings.general.betaWarning = false;
+      settings.save();
+    }
+  }
+
   Application::run();
   Instances::presentation.destruct();
   Instances::settingsWindow.destruct();

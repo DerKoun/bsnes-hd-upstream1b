@@ -50,7 +50,7 @@ auto Presentation::create() -> void {
   });
   blurEmulation.setText("Blur Emulation").setChecked(settings.video.blur).onToggle([&] {
     settings.video.blur = blurEmulation.checked();
-    emulator->configure("Video/BlurEmulation", blurEmulation.checked());
+    emulator->configure("Video/BlurEmulation", settings.video.blur);
   }).doToggle();
   filterMenu.setIcon(Icon::Emblem::Image).setText("Filter");
   filterNone.setText("None").onActivate([&] { settings.video.filter = "None"; });
@@ -86,8 +86,12 @@ auto Presentation::create() -> void {
   shaderMenu.setIcon(Icon::Emblem::Image).setText("Shader");
   muteAudio.setText("Mute Audio").setChecked(settings.audio.mute).onToggle([&] {
     settings.audio.mute = muteAudio.checked();
-    program.updateAudioEffects();
-  });
+    if(settings.audio.mute) {
+      program.mute |= Program::Mute::Always;
+    } else {
+      program.mute &= ~Program::Mute::Always;
+    }
+  }).doToggle();  //set initial mute state flag
   showStatusBar.setText("Show Status Bar").setChecked(settings.general.statusBar).onToggle([&] {
     settings.general.statusBar = showStatusBar.checked();
     if(!showStatusBar.checked()) {
@@ -102,8 +106,9 @@ auto Presentation::create() -> void {
   inputSettings.setIcon(Icon::Device::Joypad).setText("Input ...").onActivate([&] { settingsWindow.show(2); });
   hotkeySettings.setIcon(Icon::Device::Keyboard).setText("Hotkeys ...").onActivate([&] { settingsWindow.show(3); });
   pathSettings.setIcon(Icon::Emblem::Folder).setText("Paths ...").onActivate([&] { settingsWindow.show(4); });
-  emulatorSettings.setIcon(Icon::Action::Settings).setText("Emulator ...").onActivate([&] { settingsWindow.show(5); });
-  driverSettings.setIcon(Icon::Place::Settings).setText("Drivers ...").onActivate([&] { settingsWindow.show(6); });
+  speedSettings.setIcon(Icon::Device::Clock).setText("Speed ...").onActivate([&] { settingsWindow.show(5); });
+  emulatorSettings.setIcon(Icon::Action::Settings).setText("Emulator ...").onActivate([&] { settingsWindow.show(6); });
+  driverSettings.setIcon(Icon::Place::Settings).setText("Drivers ...").onActivate([&] { settingsWindow.show(7); });
 
   toolsMenu.setText(tr("Tools")).setVisible(false);
   saveState.setIcon(Icon::Action::Save).setText("Save State");
@@ -163,7 +168,7 @@ auto Presentation::create() -> void {
   captureScreenshot.setIcon(Icon::Emblem::Image).setText("Capture Screenshot").onActivate([&] {
     program.captureScreenshot();
   });
-  cheatFinder.setIcon(Icon::Edit::Find).setText("Cheat Finder ...").onActivate([&] { toolsWindow.show(0); });
+  cheatFinder.setIcon(Icon::Action::Search).setText("Cheat Finder ...").onActivate([&] { toolsWindow.show(0); });
   cheatEditor.setIcon(Icon::Edit::Replace).setText("Cheat Editor ...").onActivate([&] { toolsWindow.show(1); });
   stateManager.setIcon(Icon::Application::FileManager).setText("State Manager ...").onActivate([&] { toolsWindow.show(2); });
   manifestViewer.setIcon(Icon::Emblem::Text).setText("Manifest Viewer ...").onActivate([&] { toolsWindow.show(3); });
@@ -248,10 +253,6 @@ auto Presentation::create() -> void {
   resizeWindow();
   setAlignment(Alignment::Center);
 
-  //start in fullscreen mode if requested ...
-  //perform the exclusive mode change later on inside Program::create(), after the video driver has been initialized
-  if(startFullScreen) setFullScreen();
-
   #if defined(PLATFORM_MACOS)
   Application::Cocoa::onAbout([&] { about.doActivate(); });
   Application::Cocoa::onActivate([&] { setFocused(); });
@@ -263,6 +264,12 @@ auto Presentation::create() -> void {
 auto Presentation::updateProgramIcon() -> void {
   presentation.iconLayout.setVisible(!emulator->loaded() && !settings.video.snow);
   presentation.layout.resize();
+  //todo: video.clear() is not working on macOS/OpenGL 3.2
+  if(auto [output, length] = video.acquire(1, 1); output) {
+    *output = 0;
+    video.release();
+    video.output();
+  }
 }
 
 auto Presentation::updateStatusIcon() -> void {
@@ -270,12 +277,23 @@ auto Presentation::updateStatusIcon() -> void {
   icon.allocate(16, StatusHeight);
   icon.fill(0xff202020);
 
-  if(emulator->loaded()) {
-    image emblem{program.verified() ? (image)Icon::Emblem::Program : (image)Icon::Emblem::Binary};
+  if(emulator->loaded() && program.verified()) {
+    image emblem{Icon::Emblem::Program};
     icon.impose(image::blend::sourceAlpha, 0, (StatusHeight - 16) / 2, emblem, 0, 0, 16, 16);
+    statusIcon.setIcon(icon).setToolTip(
+      "This is a known clean game image.\n"
+      "PCB emulation is 100% accurate."
+    );
+  } else if(emulator->loaded()) {
+    image emblem{Icon::Emblem::Binary};
+    icon.impose(image::blend::sourceAlpha, 0, (StatusHeight - 16) / 2, emblem, 0, 0, 16, 16);
+    statusIcon.setIcon(icon).setToolTip(
+      "This is not a verified game image.\n"
+      "PCB emulation is relying on heuristics."
+    );
+  } else {
+    statusIcon.setIcon(icon).setToolTip();
   }
-
-  statusIcon.setIcon(icon);
 }
 
 auto Presentation::resizeWindow() -> void {

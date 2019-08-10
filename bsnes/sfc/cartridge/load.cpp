@@ -141,7 +141,7 @@ auto Cartridge::loadMap(Markup::Node map, T& memory) -> uint {
 auto Cartridge::loadMap(
   Markup::Node map,
   const function<uint8 (uint, uint8)>& reader,
-  const function<void (uint, uint8)>& writer
+  const function<void  (uint, uint8)>& writer
 ) -> uint {
   auto addr = map["address"].text();
   auto size = map["size"].natural();
@@ -428,7 +428,7 @@ auto Cartridge::loadHitachiDSP(Markup::Node node, uint roms) -> void {
     }
   }
 
-  if(configuration.hacks.coprocessors.hle) {
+  if(configuration.hacks.coprocessor.preferHLE) {
     has.Cx4 = true;
     for(auto map : node.find("map")) {
       loadMap(map, {&Cx4::read, &cx4}, {&Cx4::write, &cx4});
@@ -503,7 +503,7 @@ auto Cartridge::loaduPD7725(Markup::Node node) -> void {
     }
   }
 
-  if(failed || configuration.hacks.coprocessors.hle) {
+  if(failed || configuration.hacks.coprocessor.preferHLE) {
     auto manifest = BML::serialize(game.document);
     if(manifest.find("identifier: DSP1")) {  //also matches DSP1B
       has.DSP1 = true;
@@ -583,7 +583,7 @@ auto Cartridge::loaduPD96050(Markup::Node node) -> void {
     }
   }
 
-  if(failed || configuration.hacks.coprocessors.hle) {
+  if(failed || configuration.hacks.coprocessor.preferHLE) {
     auto manifest = BML::serialize(game.document);
     if(manifest.find("identifier: ST010")) {
       has.ST0010 = true;

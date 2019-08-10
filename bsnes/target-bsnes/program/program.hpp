@@ -95,6 +95,7 @@ struct Program : Lock, Emulator::Platform {
   auto updateVideoFormat() -> void;
   auto updateVideoShader() -> void;
   auto updateVideoPalette() -> void;
+  auto updateVideoEffects() -> void;
 
   //audio.cpp
   auto updateAudioDriver(Window parent) -> void;
@@ -125,7 +126,6 @@ struct Program : Lock, Emulator::Platform {
   //hacks.cpp
   auto hackCompatibility() -> void;
   auto hackPatchMemory(vector<uint8_t>& data) -> void;
-  auto hackOverclockSuperFX() -> void;
 
   //filter.cpp
   auto filterSelect(uint& width, uint& height, uint scale) -> Filter::Render;
@@ -186,6 +186,16 @@ public:
   uint64 statusTime;
   string statusMessage;
   string statusFrameRate;
+
+  bool startFullScreen = false;
+
+  struct Mute { enum : uint {
+    Always      = 1 << 1,
+    Unfocused   = 1 << 2,
+    FastForward = 1 << 3,
+    Rewind      = 1 << 4,
+  };};
+  uint mute = 0;
 };
 
 extern Program program;

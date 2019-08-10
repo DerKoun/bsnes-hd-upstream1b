@@ -27,13 +27,31 @@ auto CPU::stepOnce() -> void {
 template<uint Clocks, bool Synchronize>
 auto CPU::step() -> void {
   static_assert(Clocks == 2 || Clocks == 4 || Clocks == 6 || Clocks == 8 || Clocks == 10 || Clocks == 12);
+
+  for(auto coprocessor : coprocessors) {
+    coprocessor->clock -= Clocks * (uint64)coprocessor->frequency;
+  }
+
+  if(overclocking.target) {
+    overclocking.counter += Clocks;
+    if(overclocking.counter < overclocking.target) {
+      if constexpr(Synchronize) {
+        if(configuration.hacks.coprocessor.delayedSync) return;
+        synchronizeCoprocessors();
+      }
+      return;
+    }
+  }
+
   if constexpr(Clocks >=  2) stepOnce();
   if constexpr(Clocks >=  4) stepOnce();
   if constexpr(Clocks >=  6) stepOnce();
   if constexpr(Clocks >=  8) stepOnce();
   if constexpr(Clocks >= 10) stepOnce();
   if constexpr(Clocks >= 12) stepOnce();
-  Thread::step(Clocks);
+
+  smp.clock -= Clocks * (uint64)smp.frequency;
+  ppu.clock -= Clocks;
 
   if(!status.dramRefresh && hcounter() >= status.dramRefreshPosition) {
     //note: pattern should technically be 5-3, 5-3, 5-3, 5-3, 5-3 per logic analyzer
@@ -46,8 +64,8 @@ auto CPU::step() -> void {
   }
 
   if constexpr(Synchronize) {
-    if(configuration.hacks.coprocessors.delayedSync) return;
-    for(auto coprocessor : coprocessors) synchronize(*coprocessor);
+    if(configuration.hacks.coprocessor.delayedSync) return;
+    synchronizeCoprocessors();
   }
 }
 
@@ -64,12 +82,10 @@ auto CPU::step(uint clocks) -> void {
 
 //called by ppu.tick() when Hcounter=0
 auto CPU::scanline() -> void {
-  status.lineClocks = lineclocks();
-
   //forcefully sync S-CPU to other processors, in case chips are not communicating
-  synchronize(smp);
-  synchronize(ppu);
-  for(auto coprocessor : coprocessors) synchronize(*coprocessor);
+  synchronizeSMP();
+  synchronizePPU();
+  synchronizeCoprocessors();
 
   if(vcounter() == 0) {
     //HDMA setup triggers once every frame
@@ -87,6 +103,17 @@ auto CPU::scanline() -> void {
   if(vcounter() < ppu.vdisp()) {
     status.hdmaPosition = 1104;
     status.hdmaTriggered = false;
+  }
+
+  //overclocking
+  if(vcounter() == (Region::NTSC() ? 261 : 311)) {
+    overclocking.counter = 0;
+    overclocking.target = 0;
+    double overclock = configuration.hacks.cpu.overclock / 100.0;
+    if(overclock > 1.0) {
+      int clocks = (Region::NTSC() ? 262 : 312) * 1364;
+      overclocking.target = clocks * overclock - clocks;
+    }
   }
 }
 
@@ -201,18 +228,5 @@ auto CPU::joypadEdge() -> void {
     }
 
     status.autoJoypadCounter++;
-  }
-}
-
-//used to test for NMI/IRQ, which can trigger on the edge of every opcode.
-//test one cycle early to simulate two-stage pipeline of x816 CPU.
-//
-//status.irq_lock is used to simulate hardware delay before interrupts can
-//trigger during certain events (immediately after DMA, writes to $4200, etc)
-auto CPU::lastCycle() -> void {
-  if(!status.irqLock) {
-    if(nmiTest()) status.nmiPending = true;
-    if(irqTest()) status.irqPending = true;
-    status.interruptPending = (status.nmiPending || status.irqPending);
   }
 }

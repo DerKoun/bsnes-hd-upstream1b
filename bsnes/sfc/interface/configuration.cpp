@@ -16,6 +16,7 @@ auto Configuration::process(Markup::Node document, bool load) -> void {
   bind(boolean, "Video/BlurEmulation", video.blurEmulation);
   bind(boolean, "Video/ColorEmulation", video.colorEmulation);
 
+  bind(natural, "Hacks/CPU/Overclock", hacks.cpu.overclock);
   bind(boolean, "Hacks/PPU/Fast", hacks.ppu.fast);
   bind(boolean, "Hacks/PPU/NoSpriteLimit", hacks.ppu.noSpriteLimit);
   bind(natural, "Hacks/PPU/Mode7/Scale", hacks.ppu.mode7.scale);
@@ -24,8 +25,10 @@ auto Configuration::process(Markup::Node document, bool load) -> void {
   bind(boolean, "Hacks/PPU/Mode7/Mosaic", hacks.ppu.mode7.mosaic);
   bind(boolean, "Hacks/DSP/Fast", hacks.dsp.fast);
   bind(boolean, "Hacks/DSP/Cubic", hacks.dsp.cubic);
-  bind(boolean, "Hacks/Coprocessors/HLE", hacks.coprocessors.hle);
-  bind(boolean, "Hacks/Coprocessors/DelayedSync", hacks.coprocessors.delayedSync);
+  bind(boolean, "Hacks/Coprocessor/DelayedSync", hacks.coprocessor.delayedSync);
+  bind(boolean, "Hacks/Coprocessor/PreferHLE", hacks.coprocessor.preferHLE);
+  bind(natural, "Hacks/SA1/Overclock", hacks.sa1.overclock);
+  bind(natural, "Hacks/SuperFX/Overclock", hacks.superfx.overclock);
 
   #undef bind
 }

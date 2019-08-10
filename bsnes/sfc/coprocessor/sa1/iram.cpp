@@ -1,5 +1,5 @@
 auto SA1::IRAM::conflict() const -> bool {
-  if(configuration.hacks.coprocessors.delayedSync) return false;
+  if(configuration.hacks.coprocessor.delayedSync) return false;
 
   if((cpu.r.mar & 0x40f800) == 0x003000) return cpu.refresh() == 0;  //00-3f,80-bf:3000-37ff
   return false;
@@ -18,12 +18,12 @@ auto SA1::IRAM::write(uint address, uint8 data) -> void {
 }
 
 auto SA1::IRAM::readCPU(uint address, uint8 data) -> uint8 {
-  cpu.synchronize(sa1);
+  cpu.synchronizeCoprocessors();
   return read(address, data);
 }
 
 auto SA1::IRAM::writeCPU(uint address, uint8 data) -> void {
-  cpu.synchronize(sa1);
+  cpu.synchronizeCoprocessors();
   return write(address, data);
 }
 

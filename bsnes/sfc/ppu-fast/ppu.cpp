@@ -31,7 +31,10 @@ auto PPU::hdMosaic() const -> bool { return configuration.hacks.ppu.mode7.mosaic
 #define ppu ppufast
 
 PPU::PPU() {
+  output = new uint16_t[2304 * 2160]();
+
   for(uint l : range(16)) {
+    lightTable[l] = new uint16_t[32768];
     for(uint r : range(32)) {
       for(uint g : range(32)) {
         for(uint b : range(32)) {
@@ -55,19 +58,28 @@ PPU::PPU() {
 }
 
 PPU::~PPU() {
+  delete[] output;
+  for(uint l : range(16)) delete[] lightTable[l];
   delete[] tilecache[TileMode::BPP2];
   delete[] tilecache[TileMode::BPP4];
   delete[] tilecache[TileMode::BPP8];
 }
 
+auto PPU::synchronizeCPU() -> void {
+  if(ppubase.clock >= 0 && scheduler.mode != Scheduler::Mode::SynchronizeAll) co_switch(cpu.thread);
+}
+
 auto PPU::Enter() -> void {
-  while(true) scheduler.synchronize(), ppu.main();
+  while(true) {
+    scheduler.synchronize();
+    ppu.main();
+  }
 }
 
 auto PPU::step(uint clocks) -> void {
   tick(clocks);
-  Thread::step(clocks);
-  synchronize(cpu);
+  ppubase.clock += clocks;
+  synchronizeCPU();
 }
 
 auto PPU::main() -> void {
@@ -88,7 +100,7 @@ auto PPU::main() -> void {
     }
   }
 
-  step(lineclocks() - hcounter());
+  step(hperiod() - hcounter());
 }
 
 auto PPU::scanline() -> void {
@@ -116,7 +128,7 @@ auto PPU::scanline() -> void {
 
   if(vcounter() == 240) {
     Line::flush();
-    scheduler.exit(Scheduler::Event::Frame);
+    scheduler.leave(Scheduler::Event::Frame);
   }
 }
 
@@ -160,7 +172,6 @@ auto PPU::load() -> bool {
 }
 
 auto PPU::power(bool reset) -> void {
-  Thread::create(Enter, system.cpuFrequency());
   PPUcounter::reset();
   memory::fill<uint16>(output, 1024 * 960);
 

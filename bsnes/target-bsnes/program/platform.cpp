@@ -1,10 +1,10 @@
 #include <nall/encode/bmp.hpp>
-#include <icarus/heuristics/heuristics.hpp>
-#include <icarus/heuristics/heuristics.cpp>
-#include <icarus/heuristics/super-famicom.cpp>
-#include <icarus/heuristics/game-boy.cpp>
-#include <icarus/heuristics/bs-memory.cpp>
-#include <icarus/heuristics/sufami-turbo.cpp>
+#include <heuristics/heuristics.hpp>
+#include <heuristics/heuristics.cpp>
+#include <heuristics/super-famicom.cpp>
+#include <heuristics/game-boy.cpp>
+#include <heuristics/bs-memory.cpp>
+#include <heuristics/sufami-turbo.cpp>
 
 //ROM data is held in memory to support compressed archives, soft-patching, and game hacks
 auto Program::open(uint id, string name, vfs::file::mode mode, bool required) -> vfs::shared::file {
@@ -229,7 +229,6 @@ auto Program::videoFrame(const uint16* data, uint pitch, uint width, uint height
 
   uint filterWidth = width, filterHeight = height;
   auto filterRender = filterSelect(filterWidth, filterHeight, scale);
-
   if(auto [output, length] = video.acquire(filterWidth, filterHeight); output) {
     filterRender(palette, output, length, (const uint16_t*)data, pitch << 1, width, height);
     video.release();
@@ -256,13 +255,18 @@ auto Program::videoFrame(const uint16* data, uint pitch, uint width, uint height
 }
 
 auto Program::audioFrame(const float* samples, uint channels) -> void {
+  if(mute) {
+    double silence[] = {0.0, 0.0};
+    return audio.output(silence);
+  }
+
   double frame[] = {samples[0], samples[1]};
   audio.output(frame);
 }
 
 auto Program::inputPoll(uint port, uint device, uint input) -> int16 {
   int16 value = 0;
-  if(focused() || emulatorSettings.allowInput().checked()) {
+  if(focused() || inputSettings.allowInput().checked()) {
     inputManager.poll();
     if(auto mapping = inputManager.mapping(port, device, input)) {
       value = mapping->poll();
@@ -282,7 +286,7 @@ auto Program::inputPoll(uint port, uint device, uint input) -> int16 {
 }
 
 auto Program::inputRumble(uint port, uint device, uint input, bool enable) -> void {
-  if(focused() || emulatorSettings.allowInput().checked() || !enable) {
+  if(focused() || inputSettings.allowInput().checked() || !enable) {
     if(auto mapping = inputManager.mapping(port, device, input)) {
       return mapping->rumble(enable);
     }

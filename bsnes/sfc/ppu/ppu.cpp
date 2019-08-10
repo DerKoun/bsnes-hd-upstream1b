@@ -36,22 +36,26 @@ bg4(Background::ID::BG4) {
 }
 
 PPU::~PPU() {
-  if(system.fastPPU()) {
-    setHandle(nullptr);
-  }
+}
+
+auto PPU::synchronizeCPU() -> void {
+  if(clock >= 0 && scheduler.mode != Scheduler::Mode::SynchronizeAll) co_switch(cpu.thread);
 }
 
 auto PPU::step(uint clocks) -> void {
   clocks >>= 1;
   while(clocks--) {
     tick(2);
-    Thread::step(2);
-    synchronize(cpu);
+    clock += 2;
+    synchronizeCPU();
   }
 }
 
 auto PPU::Enter() -> void {
-  while(true) scheduler.synchronize(), ppu.main();
+  while(true) {
+    scheduler.synchronize();
+    ppu.main();
+  }
 }
 
 auto PPU::main() -> void {
@@ -86,33 +90,30 @@ auto PPU::main() -> void {
     obj.tilefetch();
   }
 
-  step(lineclocks() - hcounter());
+  step(hperiod() - hcounter());
 }
 
 auto PPU::load() -> bool {
-  if(system.fastPPU()) {
-    return ppufast.load();
-  }
-
   ppu1.version = max(1, min(1, configuration.system.ppu1.version));
   ppu2.version = max(1, min(3, configuration.system.ppu2.version));
   vram.mask = configuration.system.ppu1.vram.size / sizeof(uint16) - 1;
   if(vram.mask != 0xffff) vram.mask = 0x7fff;
-  return true;
+  return true && ppufast.load();
 }
 
 auto PPU::power(bool reset) -> void {
   if(system.fastPPU()) {
+    create(PPUfast::Enter, system.cpuFrequency());
     ppufast.power(reset);
-    return setHandle(ppufast.handle());
+    return;
   }
 
   create(Enter, system.cpuFrequency());
   PPUcounter::reset();
   memory::fill<uint16>(output, 512 * 480);
 
-  function<auto (uint, uint8) -> uint8> reader{&PPU::readIO, this};
-  function<auto (uint, uint8) -> void> writer{&PPU::writeIO, this};
+  function<uint8 (uint, uint8)> reader{&PPU::readIO, this};
+  function<void  (uint, uint8)> writer{&PPU::writeIO, this};
   bus.map(reader, writer, "00-3f,80-bf:2100-213f");
 
   if(!reset) random.array((uint8*)vram.data, sizeof(vram.data));
@@ -139,7 +140,7 @@ auto PPU::power(bool reset) -> void {
 
   //$2102  OAMADDL
   //$2103  OAMADDH
-  io.oamBaseAddress = random();
+  io.oamBaseAddress = random() & ~1;
   io.oamAddress = random();
   io.oamPriority = random();
 
@@ -236,7 +237,7 @@ auto PPU::scanline() -> void {
   }
 
   if(vcounter() == 240) {
-    scheduler.exit(Scheduler::Event::Frame);
+    scheduler.leave(Scheduler::Event::Frame);
   }
 }
 
@@ -249,6 +250,16 @@ auto PPU::refresh() -> void {
   auto pitch  = 512;
   auto width  = 512;
   auto height = 480;
+  if(configuration.video.blurEmulation) {
+    for(uint y : range(height)) {
+      auto data = output + y * pitch;
+      for(uint x : range(width - 1)) {
+        auto a = data[x + 0];
+        auto b = data[x + 1];
+        data[x] = (a + b - ((a ^ b) & 0x0421)) >> 1;
+      }
+    }
+  }
   if(auto device = controllerPort2.device) device->draw(output, pitch * sizeof(uint16), width, height);
   platform->videoFrame(output, pitch * sizeof(uint16), width, height, /* scale = */ 1);
 }

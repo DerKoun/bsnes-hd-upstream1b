@@ -5,6 +5,10 @@ namespace SuperFamicom {
 #include "serialization.cpp"
 Event event;
 
+auto Event::synchronizeCPU() -> void {
+  if(clock >= 0 && scheduler.mode != Scheduler::Mode::SynchronizeAll) co_switch(cpu.thread);
+}
+
 auto Event::Enter() -> void {
   while(true) scheduler.synchronize(), event.main();
 }
@@ -26,7 +30,11 @@ auto Event::main() -> void {
   }
 
   step(1);
-  synchronize(cpu);
+  synchronizeCPU();
+}
+
+auto Event::step(uint clocks) -> void {
+  clock += clocks * (uint64_t)cpu.frequency;
 }
 
 auto Event::unload() -> void {
@@ -40,7 +48,7 @@ auto Event::power() -> void {
   create(Event::Enter, 1);
 
   //DIP switches 0-3 control the time: 3 minutes + 0-15 extra minutes
-  timer = (3 + bits(dip.value,0-3)) * 60;  //in seconds
+  timer = (3 + (dip.value & 15)) * 60;  //in seconds
   //DIP switches 4-5 serve an unknown purpose
   //DIP switches 6-7 are not connected
 

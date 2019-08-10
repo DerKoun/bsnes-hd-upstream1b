@@ -1,5 +1,5 @@
 auto SA1::BWRAM::conflict() const -> bool {
-  if(configuration.hacks.coprocessors.delayedSync) return false;
+  if(configuration.hacks.coprocessor.delayedSync) return false;
 
   if((cpu.r.mar & 0x40e000) == 0x006000) return true;  //00-3f,80-bf:6000-7fff
   if((cpu.r.mar & 0xf00000) == 0x400000) return true;  //40-4f:0000-ffff
@@ -22,7 +22,7 @@ auto SA1::BWRAM::write(uint address, uint8 data) -> void {
 //00-3f,80-bf:6000-7fff size=0x2000 => 00:0000-1fff
 //40-4f:0000-ffff => untranslated
 auto SA1::BWRAM::readCPU(uint address, uint8 data) -> uint8 {
-  cpu.synchronize(sa1);
+  cpu.synchronizeCoprocessors();
 
   if(address < 0x2000) {  //$00-3f,80-bf:6000-7fff
     address = sa1.mmio.sbm * 0x2000 + (address & 0x1fff);
@@ -33,7 +33,7 @@ auto SA1::BWRAM::readCPU(uint address, uint8 data) -> uint8 {
 }
 
 auto SA1::BWRAM::writeCPU(uint address, uint8 data) -> void {
-  cpu.synchronize(sa1);
+  cpu.synchronizeCoprocessors();
 
   if(address < 0x2000) {  //$00-3f,80-bf:6000-7fff
     address = sa1.mmio.sbm * 0x2000 + (address & 0x1fff);
@@ -80,18 +80,18 @@ auto SA1::BWRAM::readBitmap(uint20 address, uint8 data) -> uint8 {
     uint shift = address & 1;
     address >>= 1;
     switch(shift) {
-    case 0: return cbits(read(address),0-3);
-    case 1: return cbits(read(address),4-7);
+    case 0: return read(address) >> 0 & 15;
+    case 1: return read(address) >> 4 & 15;
     }
   } else {
     //2bpp
     uint shift = address & 3;
     address >>= 2;
     switch(shift) {
-    case 0: return cbits(read(address),0-1);
-    case 1: return cbits(read(address),2-3);
-    case 2: return cbits(read(address),4-5);
-    case 3: return cbits(read(address),6-7);
+    case 0: return read(address) >> 0 & 3;
+    case 1: return read(address) >> 2 & 3;
+    case 2: return read(address) >> 4 & 3;
+    case 3: return read(address) >> 6 & 3;
     }
   }
   unreachable;
